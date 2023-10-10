@@ -1,0 +1,239 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Orders;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Http;
+use Symfony\Component\HttpClient\HttpClient;
+use Aws\S3\S3Client;
+
+class OrdersController extends Controller
+{
+
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index()
+    {
+
+        $data = DB::table('order.tbl_orders')
+            ->selectRaw('tbl_orders.updated_date as updated_date,tbl_orders.*')
+            ->where('status', '<>', 'ออเดอร์สำเร็จ')
+            ->orderByDesc('tbl_orders.updated_date')
+            ->get();
+
+        $UpDateDayMax = DB::table('order.tbl_orders')
+            ->where('status', '<>', 'ออเดอร์สำเร็จ')
+            ->max('updated_date');
+        // dd(compact('UpDateDayMax'));
+        return view('order.order_list', compact('data', 'UpDateDayMax'));
+    }
+
+    public function OrdersList()
+    {
+        $data = DB::table('order.tbl_orders')
+            ->where('status', '<>', 'ออเดอร์สำเร็จ')
+            ->max('updated_date');
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function getData()
+    {
+        $OrderId = base64_decode(request()->id);
+        $data = DB::table('order.tbl_orders')
+            ->selectRaw('tbl_orders.status')
+            ->where('tbl_orders.id', '=', $OrderId)->first();
+        return response()->json(['data' => $data]);
+    }
+
+
+    public function OrdersInfo()
+    {
+
+        function GetPatchImages($PathImageName)
+        {
+
+            $client = new S3Client([
+                'version' => 'latest',
+                'region'  => 'sgp1',
+                'endpoint' => 'https://sgp1.digitaloceanspaces.com',
+                'use_path_style_endpoint' => false, // Configures to use subdomain/virtual calling format.
+                'credentials' => [
+                    'key'    => 'DO002DPZZJCRP3ZWX9G8',
+                    'secret' => 'I4P0Z5qq2CbfBcNb0/vzpnsSwZrMLqKxcOpLzT+A844',
+                ],
+            ]);
+
+
+            $cmd = $client->getCommand('GetObject', [
+                'Bucket' => 'stockup-storage',
+                'Key'    =>  $PathImageName
+            ]);
+
+            $request = $client->createPresignedRequest($cmd, '+15 minutes');
+            return (string) $request->getUri();
+        }
+
+
+
+        if (!empty(request()->id)) {
+            $OrderId = base64_decode(request()->id);
+            // dd($OrderId);
+            $data = DB::table('order.tbl_orders')
+                ->leftJoin('user.tbl_users', 'user.tbl_users.id', '=', 'order.tbl_orders.customer_id')
+                ->leftJoin('user.tbl_merchants', 'user.tbl_merchants.user_id', '=', 'order.tbl_orders.buyer')
+                ->selectRaw('tbl_orders.id as orders_id,tbl_orders.*,tbl_users.*,tbl_merchants.*')
+                ->where('order.tbl_orders.id', $OrderId)->first();
+            $DataImages = GetPatchImages('pay-slip/' . $data->payslip_path);
+            // $orders_details = DB::table('order.tbl_orders')
+            // ->leftJoin('user.tbl_users', 'user.tbl_users.id', '=', 'order.tbl_orders.customer_id')
+            // ->leftJoin('user.tbl_merchants', 'user.tbl_merchants.user_id', '=', 'order.tbl_orders.buyer')
+            // ->join('invoice.tbl_product_invoice','invoice.tbl_product_invoice.order_id','=','order.tbl_orders.id')
+            // ->selectRaw('tbl_orders.id as orders_id,tbl_orders.*,tbl_users.*,tbl_merchants.*')
+            // ->where('invoice.tbl_product_invoice.order_id', $OrderId)->get();
+
+            $orders_details = DB::table('order.tbl_orders')
+                ->join('invoice.tbl_product_invoice', 'invoice.tbl_product_invoice.order_id', '=', 'order.tbl_orders.id')
+                ->leftJoin('product.tbl_electronics', 'product.tbl_electronics.id', '=', 'invoice.tbl_product_invoice.product_id')
+                // ->leftJoin('user.tbl_users', 'user.tbl_users.id', '=', 'order.tbl_orders.customer_id')
+                ->leftJoin('user.tbl_merchants', 'user.tbl_merchants.user_id', '=', 'order.tbl_orders.buyer')
+                ->selectRaw('tbl_orders.id as orders_id,tbl_orders.*,tbl_merchants.*,
+        tbl_product_invoice.serial_number as serial_number,
+        tbl_product_invoice.model_number as model_number,
+        tbl_product_invoice.*,
+        tbl_electronics.status as electronics_status,
+        tbl_electronics.name as electronics_name
+
+        ')
+                ->where('invoice.tbl_product_invoice.order_id', $OrderId)->get();
+
+            // dd(compact('data'));
+            // dd(compact('orders_details'));
+            // return response()->json(['data' => $data]);
+            return view('order.order_manage', compact('data', 'DataImages', 'orders_details'));
+        } else {
+            return redirect()->route('orders_all');
+        }
+    }
+
+
+    public function update()
+    {
+        $OrderId = base64_decode(request()->id);
+        $route = request()->title;
+        $action = request()->action;
+        $reason = request()->reason;
+        // dd(request()->all());
+        DB::beginTransaction();
+        try {
+
+            if ($route == 'payment') {
+                $order_status = 'ชำระไม่สำเร็จ';
+                if ($action == 'true') {
+                    $order_status = 'ชำระสำเร็จ';
+                }
+            }
+            if ($route == 'confirm-seller') {
+                $order_status = 'ตรวจสอบไม่สำเร็จ';
+                if ($action == 'true') {
+                    $order_status = 'ตรวจสอบสำเร็จ';
+                }
+            }
+            if ($route == 'CallRider') {
+                $order_status = 'รอไรเดอร์รับสินค้า';
+            }
+            if ($route == 'RiderSending') {
+                $order_status = 'กำลังนำส่ง';
+            }
+            if ($route == 'RiderSendSuccess') {
+                $order_status = 'ส่งสำเร็จ';
+            }
+
+            if (!$reason) {
+                DB::table('order.tbl_orders')
+                    ->where('id', $OrderId)
+                    ->update([
+                        'status' => $order_status,
+                        'updated_date' => Carbon::now()
+                    ]);
+            } else {
+                DB::table('order.tbl_orders')
+                    ->where('id', $OrderId)
+                    ->update([
+                        'status' => $order_status,
+                        'reason' => $reason,
+                        'updated_date' => Carbon::now()
+                    ]);
+            }
+
+            DB::commit();
+            $message = 'OK';
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $message = $e;
+        }
+        return response()->json(['message' => $message]);
+    }
+
+
+
+    public function send_sms()
+    {
+        try {
+
+            // $externalUrl = 'https://api.publicapis.org/entries';
+
+            $externalUrl = 'https://orca-app-egvcl.ondigitalocean.app/v1/api/sms/send';
+            $bearerToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJFbWFpbCI6Im5ld3Vzcl9mcm9tX0RPM0BleGFtcGxlLmNvbSIsImV4cCI6MjI5NjY4NjI5OCwiaXNzIjoiQXV0aFNlcnZpY2UifQ.t2QCjsyRBr9OjYQa9cWrdQUrOw2p_pqz67UdmyV8A-I';
+
+            // $response = Http::withHeaders([
+            //     'Authorization' => 'Bearer ' . $bearerToken,
+            // ])->get($externalUrl, [
+            //     'userId' => request()->userId,
+            // ]);
+            $response = Http::get($externalUrl, [
+                'userId' => request()->userId,
+            ]);
+            dd($response);
+            // $statusCode = $response->status();
+            $responseData = $response->json();
+            return response()->json($responseData);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e], $response->status());
+            // return response()->json([
+            //     'status' => $statusCode,
+            //     'data' => $responseData,
+            // ]);
+        }
+    }
+
+    public function show()
+    {
+        $client = new S3Client([
+            'version' => 'latest',
+            'region'  => getenv('SPACES_REGION'),
+            'endpoint' => getenv('SPACES_ENDPOINT'),
+            'use_path_style_endpoint' => false, // Configures to use subdomain/virtual calling format.
+            'credentials' => [
+                'key'    => getenv('SPACES_KEY'),
+                'secret' => getenv('SPACES_SECRET'),
+            ],
+        ]);
+
+        $cmd = $client->getCommand('GetObject', [
+            'Bucket' => 'stockup-storage',
+            'Key'    => 'pay-slip/qr_codeTest'
+        ]);
+
+        $request = $client->createPresignedRequest($cmd, '+15 minutes');
+        $presignedUrl = (string) $request->getUri();
+
+        return view('show', compact('presignedUrl'));
+    }
+}
