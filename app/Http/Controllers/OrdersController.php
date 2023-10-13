@@ -77,6 +77,7 @@ class OrdersController extends Controller
             ]);
 
             $request = $client->createPresignedRequest($cmd, '+15 minutes');
+            // dd($request->getUri());
             return (string) $request->getUri();
         }
 
@@ -88,15 +89,22 @@ class OrdersController extends Controller
             $data = DB::table('order.tbl_orders')
                 ->leftJoin('user.tbl_users', 'user.tbl_users.id', '=', 'order.tbl_orders.customer_id')
                 ->leftJoin('user.tbl_merchants', 'user.tbl_merchants.user_id', '=', 'order.tbl_orders.buyer')
+                ->selectRaw('tbl_orders.id as orders_id,tbl_orders.plus_code as buyer_plus_code,tbl_orders.*,tbl_users.*,tbl_merchants.*')
+                ->where('order.tbl_orders.id', $OrderId)->first();
+            if (!empty($data->payslip_path)) {
+                $DataImages = GetPatchImages('pay-slip/' . $data->payslip_path);
+            } else {
+                // $DataImages = '{{asset("image/laravel.png")}}';
+                $DataImages = '../public/image/No_picture_available.png';
+            }
+
+
+            $seller = DB::table('order.tbl_orders')
+                ->leftJoin('user.tbl_users', 'user.tbl_users.id', '=', 'order.tbl_orders.seller')
+                ->leftJoin('user.tbl_merchants', 'user.tbl_merchants.user_id', '=', 'order.tbl_orders.seller')
                 ->selectRaw('tbl_orders.id as orders_id,tbl_orders.*,tbl_users.*,tbl_merchants.*')
                 ->where('order.tbl_orders.id', $OrderId)->first();
-            $DataImages = GetPatchImages('pay-slip/' . $data->payslip_path);
-            // $orders_details = DB::table('order.tbl_orders')
-            // ->leftJoin('user.tbl_users', 'user.tbl_users.id', '=', 'order.tbl_orders.customer_id')
-            // ->leftJoin('user.tbl_merchants', 'user.tbl_merchants.user_id', '=', 'order.tbl_orders.buyer')
-            // ->join('invoice.tbl_product_invoice','invoice.tbl_product_invoice.order_id','=','order.tbl_orders.id')
-            // ->selectRaw('tbl_orders.id as orders_id,tbl_orders.*,tbl_users.*,tbl_merchants.*')
-            // ->where('invoice.tbl_product_invoice.order_id', $OrderId)->get();
+            // dd($data);
 
             $orders_details = DB::table('order.tbl_orders')
                 ->join('invoice.tbl_product_invoice', 'invoice.tbl_product_invoice.order_id', '=', 'order.tbl_orders.id')
@@ -113,10 +121,10 @@ class OrdersController extends Controller
         ')
                 ->where('invoice.tbl_product_invoice.order_id', $OrderId)->get();
 
-            // dd(compact('data'));
-            // dd(compact('orders_details'));
+            // dd(compact('data', 'seller'));
+            // dd(compact('data', 'orders_details'));
             // return response()->json(['data' => $data]);
-            return view('order.order_manage', compact('data', 'DataImages', 'orders_details'));
+            return view('order.order_manage', compact('data', 'seller', 'DataImages', 'orders_details'));
         } else {
             return redirect()->route('orders_all');
         }
@@ -136,18 +144,20 @@ class OrdersController extends Controller
             if ($route == 'payment') {
                 $order_status = 'ชำระไม่สำเร็จ';
                 if ($action == 'true') {
-                    $order_status = 'ชำระสำเร็จ';
+                    $order_status = 'รอผู้ขายตอบรับ';
                 }
             }
             if ($route == 'confirm-seller') {
                 $order_status = 'ตรวจสอบไม่สำเร็จ';
                 if ($action == 'true') {
-                    $order_status = 'ตรวจสอบสำเร็จ';
+                    $order_status = 'รอไรเดอร์รับสินค้า';
                 }
             }
-            if ($route == 'CallRider') {
-                $order_status = 'รอไรเดอร์รับสินค้า';
-            }
+
+            // if ($route == 'CallRider') {
+            //     $order_status = 'กำลังนำส่ง';
+            // }
+
             if ($route == 'RiderSending') {
                 $order_status = 'กำลังนำส่ง';
             }
