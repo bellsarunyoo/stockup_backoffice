@@ -94,9 +94,16 @@ class OrdersController extends Controller
             if (!empty($data->payslip_path)) {
                 $DataImages = GetPatchImages('pay-slip/' . $data->payslip_path);
             } else {
-                // $DataImages = '{{asset("image/laravel.png")}}';
                 $DataImages = '../public/image/No_picture_available.png';
             }
+
+            if (!empty($data->payment_picture)) {
+                $BuyerQRCode = GetPatchImages('qr-code/' . $data->payment_picture);
+            } else {
+                // $BuyerQRCode = "{{asset('image/No_picture_available.png')}}";
+                $BuyerQRCode = '../public/image/No_picture_available.png';
+            }
+
 
 
             $seller = DB::table('order.tbl_orders')
@@ -121,10 +128,23 @@ class OrdersController extends Controller
         ')
                 ->where('invoice.tbl_product_invoice.order_id', $OrderId)->get();
 
+            $orders_details2 = DB::table('order.tbl_orders')
+                ->join('invoice.tbl_product_invoice', 'invoice.tbl_product_invoice.order_id', '=', 'order.tbl_orders.id')
+                ->leftJoin('product.tbl_electronics', 'product.tbl_electronics.id', '=', 'invoice.tbl_product_invoice.product_id')
+                ->selectRaw('tbl_orders.id as orders_id,tbl_orders.*,
+        tbl_product_invoice.serial_number as serial_number,
+        tbl_product_invoice.model_number as model_number,
+        tbl_product_invoice.*,
+        tbl_electronics.status as electronics_status,
+        tbl_electronics.name as electronics_name
+
+        ')
+                ->where('invoice.tbl_product_invoice.order_id', $OrderId)->get();
+            // dd($orders_details2);
             // dd(compact('data', 'seller'));
-            // dd(compact('data', 'orders_details'));
+            // dd(compact('data', 'seller', 'orders_details'));
             // return response()->json(['data' => $data]);
-            return view('order.order_manage', compact('data', 'seller', 'DataImages', 'orders_details'));
+            return view('order.order_manage', compact('data', 'BuyerQRCode', 'seller', 'DataImages', 'orders_details'));
         } else {
             return redirect()->route('orders_all');
         }
@@ -180,13 +200,38 @@ class OrdersController extends Controller
                         'reason' => $reason,
                         'updated_date' => Carbon::now()
                     ]);
+
+                $orders_details = DB::table('order.tbl_orders')
+                    ->join('invoice.tbl_product_invoice', 'invoice.tbl_product_invoice.order_id', '=', 'order.tbl_orders.id')
+                    ->leftJoin('product.tbl_electronics', 'product.tbl_electronics.id', '=', 'invoice.tbl_product_invoice.product_id')
+                    ->selectRaw('tbl_orders.id as orders_id,tbl_orders.*,
+            tbl_product_invoice.serial_number as serial_number,
+            tbl_product_invoice.model_number as model_number,
+            tbl_product_invoice.*,
+            tbl_electronics.status as electronics_status,
+            tbl_electronics.name as electronics_name
+
+            ')->where('invoice.tbl_product_invoice.order_id', $OrderId)->get();
+                if (!empty($orders_details)) {
+
+                    foreach ($orders_details as $getData) {
+                        $AmountStock =  DB::table('product.tbl_electronics')->selectRaw('stock')->where('id', $getData->product_id)->first();
+                        DB::table('product.tbl_electronics')
+                            ->where('id', $getData->product_id)
+                            ->update([
+                                'stock' => intval($AmountStock->stock) + intval($getData->amount),
+                                'updated_date' => Carbon::now()
+                            ]);
+                        DB::commit();
+                    }
+                }
             }
 
             DB::commit();
             $message = 'OK';
         } catch (\Exception $e) {
             DB::rollBack();
-            $message = $e;
+            $message = $e->getMessage();
         }
         return response()->json(['message' => $message]);
     }

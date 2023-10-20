@@ -686,7 +686,7 @@
                                                 </div>
                                                 <div class="row">
                                                     <picture>
-                                                        <img class="border-1" src="{{ $DataImages ?? "" }}"
+                                                        <img class="border-1" src="{{ $BuyerQRCode ?? "" }}"
                                                             alt="slip" max-width="50%">
                                                     </picture>
                                                 </div>
@@ -766,7 +766,7 @@
                                                 </div>
                                                 <div class="row">
                                                     <picture>
-                                                        <img class="border-1" src="{{ $DataImages ?? "" }}"
+                                                        <img class="border-1" src="{{ $BuyerQRCode ?? "" }}"
                                                             alt="slip" max-width="50%">
                                                     </picture>
                                                 </div>
@@ -846,7 +846,7 @@
                                                 </div>
                                                 <div class="row">
                                                     <picture>
-                                                        <img class="border-1" src="{{ $DataImages ?? "" }}"
+                                                        <img class="border-1" src="{{ $BuyerQRCode ?? "" }}"
                                                             alt="slip" max-width="50%">
                                                     </picture>
                                                 </div>
@@ -946,7 +946,7 @@
                                                 </div>
                                                 <div class="row">
                                                     <picture>
-                                                        <img class="border-1" src="{{ $DataImages ?? "" }}"
+                                                        <img class="border-1" src="{{ $BuyerQRCode ?? "" }}"
                                                             alt="slip" max-width="50%">
                                                     </picture>
                                                 </div>
@@ -1166,71 +1166,72 @@
                                     // console.log(payment);
                                     if (res.message === 'OK') {
                                         if (payment === 'payment') {
-                                            // $.ajax({
-                                            //     type: "GET",
-                                            //     dataType: 'JSON',
-                                            //     cache: false,
-                                            //     url: 'https://orca-app-egvcl.ondigitalocean.app/v1/api/sms/send?',
-                                            //     data: {
-                                            //         userId: seller,
-                                            //     },
-                                            //     headers: {
-                                            //         "Accept": "application/json",
-                                            //         'X-CSRF-TOKEN': $(
-                                            //                 'meta[name="csrf-token"]'
-                                            //             )
-                                            //             .attr('content')
-                                            //     },
-                                            //     success: function(sms) {
-                                            //         // alert(sms);
-                                            //         console.log(sms); sms.message
-                                            var sms = 'success';
-                                            if (sms ===
-                                                'success') {
-                                                Swal.fire({
-                                                    icon: 'success',
-                                                    title: 'สำเร็จ',
-                                                    footer: 'ส่ง SMS สำเร็จ',
-                                                    showConfirmButton: false,
-                                                    timer: 1800
-                                                }).then(() => {
-                                                    location
-                                                        .reload();
-                                                });
+                                            $.ajax({
+                                                type: "GET",
+                                                dataType: 'JSON',
+                                                cache: false,
+                                                url: 'https://orca-app-egvcl.ondigitalocean.app/v1/api/sms/send?',
+                                                data: {
+                                                    userId: seller,
+                                                },
+                                                headers: {
+                                                    "Accept": "application/json",
+                                                    'X-CSRF-TOKEN': $(
+                                                            'meta[name="csrf-token"]'
+                                                        )
+                                                        .attr('content')
+                                                },
+                                                success: function(sms) {
+                                                    // alert(sms);
+                                                    console.log(sms);
 
-                                            } else {
-                                                Swal.fire({
-                                                    icon: 'success',
-                                                    title: 'สำเร็จ',
-                                                    footer: '<div class="h4 text-danger">ส่ง SMS ไม่สำเร็จ Error:' +
-                                                        res
-                                                        .status_code +
-                                                        '</div>',
-                                                    showConfirmButton: fale,
-                                                    timer: 5000
-                                                }).then(() => {
-                                                    location
-                                                        .reload();
-                                                });
-                                            }
+                                                    // var sms = 'success';
+                                                    if (sms.message ===
+                                                        'success') {
+                                                        Swal.fire({
+                                                            icon: 'success',
+                                                            title: 'สำเร็จ',
+                                                            footer: 'ส่ง SMS สำเร็จ',
+                                                            showConfirmButton: false,
+                                                            timer: 1800
+                                                        }).then(() => {
+                                                            location
+                                                                .reload();
+                                                        });
 
-                                            //     },
-                                            //     error: function(res) {
-                                            //         Swal.fire({
-                                            //             icon: 'success',
-                                            //             title: 'สำเร็จ',
-                                            //             footer: '<div class="h4 text-danger">ส่ง SMS ไม่สำเร็จ Error:' +
-                                            //                 res
-                                            //                 .status_code +
-                                            //                 '</div>',
-                                            //             showConfirmButton: false,
-                                            //             timer: 5000
-                                            //         }).then(() => {
-                                            //             location
-                                            //                 .reload();
-                                            //         });
-                                            //     }
-                                            // });
+                                                    } else {
+                                                        Swal.fire({
+                                                            icon: 'success',
+                                                            title: 'สำเร็จ',
+                                                            footer: '<div class="h4 text-danger">ส่ง SMS ไม่สำเร็จ Error:' +
+                                                                res
+                                                                .status_code +
+                                                                '</div>',
+                                                            showConfirmButton: fale,
+                                                            timer: 5000
+                                                        }).then(() => {
+                                                            location
+                                                                .reload();
+                                                        });
+                                                    }
+
+                                                },
+                                                error: function(res) {
+                                                    Swal.fire({
+                                                        icon: 'success',
+                                                        title: 'สำเร็จ',
+                                                        footer: '<div class="h4 text-danger">ส่ง SMS ไม่สำเร็จ Error:' +
+                                                            res
+                                                            .status_code +
+                                                            '</div>',
+                                                        showConfirmButton: false,
+                                                        timer: 5000
+                                                    }).then(() => {
+                                                        location
+                                                            .reload();
+                                                    });
+                                                }
+                                            });
                                         } else {
                                             Swal.fire({
                                                 icon: 'success',
