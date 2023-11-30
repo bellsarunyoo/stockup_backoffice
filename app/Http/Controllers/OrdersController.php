@@ -142,7 +142,7 @@ class OrdersController extends Controller
                 ->where('invoice.tbl_product_invoice.order_id', $OrderId)->get();
             // dd($orders_details2);
             // dd(compact('data', 'seller'));
-            // dd(compact('data', 'seller', 'orders_details'));
+            // dd(compact('data', 'BuyerQRCode', 'seller', 'DataImages', 'orders_details'));
             // return response()->json(['data' => $data]);
             return view('order.order_manage', compact('data', 'BuyerQRCode', 'seller', 'DataImages', 'orders_details'));
         } else {
